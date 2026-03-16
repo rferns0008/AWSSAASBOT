@@ -1,0 +1,24 @@
+# Local .terraform directory
+.terraform/
+
+# Terraform state files
+*.tfstate
+*.tfstate.*
+
+# Crash logs
+crash.log
+
+# Sensitive variable files
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+
+# Terraform plan files
+tfplan
+
+# Python local files
+__pycache__/
+*.py[cod]
+*$py.class
+.env
