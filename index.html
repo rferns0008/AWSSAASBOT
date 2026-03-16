@@ -1,30 +1,99 @@
-<div class="chatbox">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AWSSAASBot</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f9fafb; display: flex; justify-content: center; padding: 20px; }
+    .chatbox { width: 600px; background: white; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); padding: 20px; display: flex; flex-direction: column; }
+    #history { flex: 1; overflow-y: auto; margin-top: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #fafafa; max-height: 400px; min-height: 300px; }
+    .message { display: flex; align-items: flex-start; margin-bottom: 12px; }
+    .user-icon, .bot-icon { font-size: 20px; margin-right: 8px; }
+    .content { background: #f0f0f0; padding: 10px 14px; border-radius: 10px; max-width: 80%; word-wrap: break-word; }
+    .message.user .content { background: #e0f7fa; align-self: flex-end; }
+    .message.bot .content { background: #f1f8e9; }
+    .input-area { display: flex; gap: 10px; margin-top: 10px; }
+    #input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
+    button { padding: 10px 14px; border: none; border-radius: 8px; background: #007BFF; color: white; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    #typing { margin: 8px 0; font-style: italic; color: #666; font-size: 14px; }
+    .chat-response p { margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="chatbox">
     <div class="input-area">
-        <input id="input" type="text" placeholder="Type your message..." />
-        <button onclick="sendMessage()">Send</button>
-        <button onclick="clearHistory()">Clear</button>
+      <input id="input" type="text" placeholder="Type your message..." />
+      <button onclick="sendMessage()">Send</button>
+      <button onclick="clearHistory()">Clear</button>
     </div>
     <div id="typing" style="display:none;">🤔 Thinking...</div>
     <div id="history"></div>
-</div>
+  </div>
 
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        const historyEl = document.getElementById('history');
-        const typingEl = document.getElementById('typing');
-        const inputEl = document.getElementById('input');
+  <script>
+    // Define functions globally so 'onclick' can find them
+    const API_ENDPOINT = "https://api.rferns-0009.xyz/chat";
 
-        // Check if elements exist before adding listeners to prevent the TypeError
-        if (inputEl) {
-            inputEl.addEventListener("keyup", function(event) {
-                if (event.key === "Enter") {
-                    sendMessage();
-                }
-            });
-        } else {
-            console.error("Could not find input element with ID 'input'");
-        }
+    async function sendMessage() {
+      const inputEl = document.getElementById('input');
+      const typingEl = document.getElementById('typing');
+      const message = inputEl.value.trim();
+      
+      if (!message) return;
 
-        // ... rest of your sendMessage and appendMessage functions ...
+      appendMessage('🤵', message, 'user');
+      inputEl.value = '';
+      typingEl.style.display = 'block';
+
+      try {
+        const res = await fetch(API_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_input: message })
+        });
+
+        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+
+        const data = await res.json();
+        const markdown = data.response || '⚠️ No response received.';
+        const html = marked.parse(markdown);
+
+        appendMessage('🤖', html, 'bot', true);
+      } catch (err) {
+        console.error("API Error:", err);
+        appendMessage('🤖', `⚠️ Error: ${err.message}`, 'bot');
+      } finally {
+        typingEl.style.display = 'none';
+      }
+    }
+
+    function appendMessage(icon, content, type, isMarkdown = false) {
+      const historyEl = document.getElementById('history');
+      const msgEl = document.createElement('div');
+      msgEl.className = `message ${type}`;
+      msgEl.innerHTML = `
+        <div class="${type}-icon">${icon}</div>
+        <div class="content">
+          ${isMarkdown ? `<div class="chat-response">${content}</div>` : content}
+        </div>
+      `;
+      historyEl.appendChild(msgEl);
+      historyEl.scrollTop = historyEl.scrollHeight;
+    }
+
+    function clearHistory() {
+      document.getElementById('history').innerHTML = '';
+    }
+
+    // Handle Enter key
+    document.getElementById('input').addEventListener("keyup", function(event) {
+      if (event.key === "Enter") {
+        sendMessage();
+      }
     });
-</script>
+  </script>
+</body>
+</html>
