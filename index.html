@@ -1,59 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AWSSAASBot</title>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f9fafb; display: flex; justify-content: center; padding: 20px; }
-    .chatbox { width: 600px; background: white; border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); padding: 20px; display: flex; flex-direction: column; }
-    #history { flex: 1; overflow-y: auto; margin-top: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #fafafa; max-height: 400px; }
-    .message { display: flex; align-items: flex-start; margin-bottom: 12px; }
-    .user-icon, .bot-icon { font-size: 20px; margin-right: 8px; }
-    .content { background: #f0f0f0; padding: 10px 14px; border-radius: 10px; max-width: 80%; }
-    .message.user .content { background: #e0f7fa; }
-    .message.bot .content { background: #f1f8e9; }
-    .input-area { display: flex; gap: 10px; margin-top: 10px; }
-    #input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
-    button { padding: 10px 14px; border: none; border-radius: 8px; background: #007BFF; color: white; cursor: pointer; }
-    button:hover { background: #0056b3; }
-    #typing { margin: 8px 0; font-style: italic; color: #666; }
-  </style>
-</head>
-<body>
-  <div class="chatbox">
-    <div class="input-area">
-      <input id="input" type="text" placeholder="Type your message..." />
-      <button onclick="sendMessage()">Send</button>
-      <button onclick="clearHistory()">Clear</button>
-    </div>
-    <div id="typing" style="display:none;">🤔 Thinking...</div>
-    <div id="history"></div>
-  </div>
-
-  <script>
+<script>
     document.addEventListener("DOMContentLoaded", function () {
       const historyEl = document.getElementById('history');
       const typingEl = document.getElementById('typing');
       const inputEl = document.getElementById('input');
 
-      // Detect protocol + host
-      const protocol = window.location.protocol;
-      const host = window.location.hostname;
-
-      // Map frontend host → backend API host
-      let apiHost;
-      if (host.includes("chat.rferns-008.com")) {
-        apiHost = "api.rferns-008.com";
-      } else if (host.includes("chat-ec2.rferns-008.com")) {
-        apiHost = "api-ec2.rferns-008.com";
-      } else {
-        apiHost = host; // fallback for testing
-      }
-
-      const API_ENDPOINT = `${protocol}//${apiHost}/bot`;
-      console.log("Using backend:", API_ENDPOINT);
+      // Static Backend Configuration
+      const API_HOST = "api.rferns-0009.xyz";
+      const API_ENDPOINT = `https://${API_HOST}/chat`; 
 
       async function sendMessage() {
         const message = inputEl.value.trim();
@@ -70,21 +23,17 @@
             body: JSON.stringify({ user_input: message })
           });
 
-          const text = await res.text();
-          console.log("Raw response:", text);
-
-          let data;
-          try {
-            data = JSON.parse(text);
-          } catch (err) {
-            throw new Error("Invalid JSON response from backend");
+          if (!res.ok) {
+            throw new Error(`Server returned ${res.status}`);
           }
 
+          const data = await res.json();
           const markdown = data.response || '⚠️ No response received.';
           const html = marked.parse(markdown);
 
           appendMessage('🤖', html, 'bot', true);
         } catch (err) {
+          console.error("Fetch Error:", err);
           appendMessage('🤖', `⚠️ Error: ${err.message}`, 'bot');
         }
 
@@ -108,17 +57,11 @@
         historyEl.innerHTML = '';
       }
 
-      // Handle Enter key
-      inputEl.addEventListener("keyup", function(event) {
-        if (event.key === "Enter") {
-          sendMessage();
-        }
+      inputEl.addEventListener("keyup", (event) => {
+        if (event.key === "Enter") sendMessage();
       });
 
-      // Expose functions for buttons
       window.sendMessage = sendMessage;
       window.clearHistory = clearHistory;
     });
   </script>
-</body>
-</html>
