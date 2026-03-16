@@ -59,7 +59,7 @@ pipeline {
                     def appImage = docker.build("${ECR_URL}/${IMAGE_NAME}:${env.BUILD_NUMBER}")
                     appImage.push()
                     
-                    sh "kubectl apply -f deployment.yaml"
+                    sh "kubectl apply -f deployment.yml"
                     sh "kubectl set image deployment/flask-chatbot chatbot-container=${ECR_URL}/${IMAGE_NAME}:${env.BUILD_NUMBER} -n chatbot-production"
                 }
             }
