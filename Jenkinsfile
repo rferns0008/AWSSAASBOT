@@ -68,12 +68,16 @@ pipeline {
         stage('Frontend: Sync S3') {
             steps {
                 script {
-                    sh "aws s3 sync ./frontend s3://${S3_BUCKET}/ --delete"
-                    // Corrected CloudFront invalidation lookup
-                    def cfId = sh(script: "aws cloudfront list-distributions --query \"DistributionList.Items[?Aliases.Items[0]=='rferns-0009.xyz'].Id\" --output text", returnStdout: true).trim()
-                    if (cfId != "None" && cfId != "") {
-                        sh "aws cloudfront create-invalidation --distribution-id ${cfId} --paths '/*'"
-                    }
+                    // Sync the root (.) but only include web assets
+                    sh """
+                    aws s3 sync . s3://frontend-assets-rferns-0009.xyz/ \
+                        --exclude "*" \
+                        --include "*.html" \
+                        --include "*.css" \
+                        --include "*.js" \
+                        --include "images/*" \
+                        --delete
+                    """
                 }
             }
         }
