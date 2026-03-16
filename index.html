@@ -1,67 +1,30 @@
+<div class="chatbox">
+    <div class="input-area">
+        <input id="input" type="text" placeholder="Type your message..." />
+        <button onclick="sendMessage()">Send</button>
+        <button onclick="clearHistory()">Clear</button>
+    </div>
+    <div id="typing" style="display:none;">🤔 Thinking...</div>
+    <div id="history"></div>
+</div>
+
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-      const historyEl = document.getElementById('history');
-      const typingEl = document.getElementById('typing');
-      const inputEl = document.getElementById('input');
+        const historyEl = document.getElementById('history');
+        const typingEl = document.getElementById('typing');
+        const inputEl = document.getElementById('input');
 
-      // Static Backend Configuration
-      const API_HOST = "api.rferns-0009.xyz";
-      const API_ENDPOINT = `https://${API_HOST}/chat`; 
-
-      async function sendMessage() {
-        const message = inputEl.value.trim();
-        if (!message) return;
-
-        appendMessage('🤵', message, 'user');
-        inputEl.value = '';
-        typingEl.style.display = 'block';
-
-        try {
-          const res = await fetch(API_ENDPOINT, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_input: message })
-          });
-
-          if (!res.ok) {
-            throw new Error(`Server returned ${res.status}`);
-          }
-
-          const data = await res.json();
-          const markdown = data.response || '⚠️ No response received.';
-          const html = marked.parse(markdown);
-
-          appendMessage('🤖', html, 'bot', true);
-        } catch (err) {
-          console.error("Fetch Error:", err);
-          appendMessage('🤖', `⚠️ Error: ${err.message}`, 'bot');
+        // Check if elements exist before adding listeners to prevent the TypeError
+        if (inputEl) {
+            inputEl.addEventListener("keyup", function(event) {
+                if (event.key === "Enter") {
+                    sendMessage();
+                }
+            });
+        } else {
+            console.error("Could not find input element with ID 'input'");
         }
 
-        typingEl.style.display = 'none';
-      }
-
-      function appendMessage(icon, content, type, isMarkdown = false) {
-        const msgEl = document.createElement('div');
-        msgEl.className = `message ${type}`;
-        msgEl.innerHTML = `
-          <div class="${type}-icon">${icon}</div>
-          <div class="content">
-            ${isMarkdown ? `<div class="chat-response">${content}</div>` : content}
-          </div>
-        `;
-        historyEl.appendChild(msgEl);
-        historyEl.scrollTop = historyEl.scrollHeight;
-      }
-
-      function clearHistory() {
-        historyEl.innerHTML = '';
-      }
-
-      inputEl.addEventListener("keyup", (event) => {
-        if (event.key === "Enter") sendMessage();
-      });
-
-      window.sendMessage = sendMessage;
-      window.clearHistory = clearHistory;
+        // ... rest of your sendMessage and appendMessage functions ...
     });
-  </script>
+</script>
