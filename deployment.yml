@@ -1,57 +1,42 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: flask-chatbot
-  namespace: chatbot-production
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: chatbot
-  template:
-    metadata:
-      labels:
-        app: chatbot
-    spec:
-      containers:
-      - name: chatbot-container
-        # Jenkins will update this image tag automatically during the pipeline
-        image: 078083578991.dkr.ecr.ap-south-1.amazonaws.com/chatbot-app:latest
-        ports:
-        - containerPort: 5000
-        env:
-        - name: OPENAI_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: openai-credentials
-              key: OPENAI_API_KEY
----
 apiVersion: v1
 kind: Service
 metadata:
   name: chatbot-service
   namespace: chatbot-production
-  annotations:
-    # 1. Predictable Name for Terraform Route 53 Alias
-    service.beta.kubernetes.io/aws-load-balancer-name: "chatbot-api-lb"
-    
-    # 2. Use the modern AWS Load Balancer Controller (NLB)
-    service.beta.kubernetes.io/aws-load-balancer-type: "external"
-    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
-    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
-    
-    # 3. SSL Configuration (Mumbai Region)
-    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:ap-south-1:078083578991:certificate/YOUR_AP_SOUTH_1_CERT_ID"
-    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
-    
-    # 4. Security Policy
-    service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy: "ELBSecurityPolicy-TLS13-1-2-2021-06"
 spec:
-  type: LoadBalancer
+  # Changed from LoadBalancer to NodePort
+  type: NodePort 
   selector:
     app: chatbot
   ports:
-    - name: https
+    - port: 80
+      targetPort: 5000
       protocol: TCP
-      port: 443         # Traffic arrives at the LB on 443
-      targetPort: 5000  # Traffic is sent to the Flask app on 5000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chatbot-ingress
+  namespace: chatbot-production
+  annotations:
+    # This triggers the creation of an ALB
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    # Predictable name for Terraform
+    alb.ingress.kubernetes.io/load-balancer-name: "chatbot-api-alb"
+    # SSL Configuration
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:ap-south-1:078083578991:certificate/e583e1f8-ee5b-485d-ac94-4eac34d1d887"
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+spec:
+  rules:
+    - host: "api.rferns-0009.xyz"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chatbot-service
+                port:
+                  number: 80
