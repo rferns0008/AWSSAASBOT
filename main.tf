@@ -179,3 +179,27 @@ resource "aws_route53_record" "api" {
     evaluate_target_health = true
   }
 }
+
+# --- 7. S3 BUCKET POLICY ---
+resource "aws_s3_bucket_policy" "allow_oac" {
+  bucket = aws_s3_bucket.frontend.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "AllowCloudFrontServicePrincipalReadOnly"
+        Action   = "s3:GetObject"
+        Effect   = "Allow"
+        Resource = "${aws_s3_bucket.frontend.arn}/*"
+        Principal = {
+          Service = "cloudfront.amazonaws.com"
+        }
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.s3_distribution.arn
+          }
+        }
+      }
+    ]
+  })
+}
