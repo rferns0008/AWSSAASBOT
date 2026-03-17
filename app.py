@@ -1,9 +1,14 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import logging
 import os
 from openai import OpenAI
 
 app = Flask(__name__)
+
+# 2. Enable CORS for your specific frontend domain
+# This allows your S3/CloudFront frontend to securely talk to your EKS backend.
+CORS(app, resources={r"/*": {"origins": ["https://rferns-0009.xyz"]}})
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,7 +45,7 @@ def generate_response(user_input: str) -> str:
     )
     return response.choices[0].message.content.strip()
 
-@app.route("/bot", methods=["POST"])
+@app.route("/chat", methods=["POST"])
 def chatbot():
     try:
         data = request.get_json(force=True)
