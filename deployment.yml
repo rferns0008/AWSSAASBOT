@@ -7,7 +7,7 @@ spec:
   # Changed from LoadBalancer to NodePort
   type: NodePort 
   selector:
-    app: flask-chatbot
+    app: chatbot
   ports:
     - port: 80
       targetPort: 5000
