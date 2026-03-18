@@ -55,17 +55,26 @@ pipeline {
         stage('Deploy to EKS & Configure DNS') {
             steps {
                 script {
-                    // 1. (Optional for this specific fix) Restart the controller to pick up new IAM perms
+                    // 1. Ensure Terraform is installed on the Jenkins agent
+                    sh '''
+                        if ! command -v terraform &> /dev/null; then
+                            echo "Terraform not found. Installing..."
+                            wget -qO- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+                            echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+                            sudo apt update && sudo apt-get install terraform -y
+                        fi
+                    '''
+
+                    // 2. Restart Controller & Apply Manifests
                     sh 'kubectl rollout restart deployment aws-load-balancer-controller -n kube-system'
-            
-                    // 2. Apply the Kubernetes manifests
                     sh 'kubectl apply -f deployment.yml'
 
-                    // 3. Wait for AWS to provision the ALB and extract the URL
+                    // 3. Wait for ALB and extract URL cleanly
+                    // Note the >&2 on the echo command - this prevents it from poisoning the variable
                     env.ALB_HOSTNAME = sh(script: '''
                         HOSTNAME=""
                         while [ -z "$HOSTNAME" ]; do
-                            echo "Waiting for AWS to provision the ALB..."
+                            echo "Waiting for AWS to provision the ALB..." >&2
                             sleep 15
                             HOSTNAME=$(kubectl get ingress chatbot-ingress -n chatbot-production -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
                         done
@@ -74,10 +83,12 @@ pipeline {
 
                     echo "Successfully retrieved ALB Address: ${env.ALB_HOSTNAME}"
 
-                    // 4. Run Terraform to create the Route 53 record pointing to the new ALB
-                    dir('.terraform') { // Or wherever your Terraform files are located
-                        sh "terraform apply -var=\"alb_dns_name=${env.ALB_HOSTNAME}\" -auto-approve"
-                    }
+                    // 4. Run Terraform from the workspace root (where main.tf is)
+                    // Ensure you init first, just in case the agent workspace is clean
+                    sh '''
+                        terraform init
+                        terraform apply -var="alb_dns_name=${ALB_HOSTNAME}" -auto-approve
+                    '''
                 }
             }
         }
