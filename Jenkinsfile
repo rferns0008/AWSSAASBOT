@@ -16,12 +16,15 @@ pipeline {
         stage('Tool Setup') {
             steps {
                 script {
+                    // Check for unzip, required for AWS CLI installation
+                    sh 'sudo -n apt-get update && sudo -n apt-get install -y unzip'
+            
                     // Install AWS CLI if missing
                     sh '''
                         if ! command -v aws &> /dev/null; then
                             curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
                             unzip -q awscliv2.zip
-                            sudo ./aws/install
+                            sudo -n ./aws/install
                             rm -rf aws awscliv2.zip
                         fi
                     '''
@@ -29,17 +32,16 @@ pipeline {
                     sh '''
                         if ! command -v kubectl &> /dev/null; then
                             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+                            sudo -n install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
                             rm kubectl
                         fi
                     '''
                     // Install terraform if missing
                     sh '''
                         if ! command -v terraform &> /dev/null; then
-                            sudo apt-get update && sudo apt-get install -y gnupg software-properties-common
-                            wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
-                            echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-                            sudo apt-get update && sudo apt-get install terraform -y
+                            wget -O- https://apt.releases.hashicorp.com/gpg | sudo -n gpg --dearmor | sudo -n tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
+                            echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo -n tee /etc/apt/sources.list.d/hashicorp.list
+                            sudo -n apt-get update && sudo -n apt-get install terraform -y
                         fi
                     '''
                 }
