@@ -36,10 +36,8 @@ pipeline {
         stage('Deploy Infra') {
             steps {
                 script {
-                    dir('terraform') {
-                        sh "terraform init -no-color"
-                        sh "terraform apply -auto-approve -no-color"
-                    }
+                    sh "terraform init -no-color"
+                    sh "terraform apply -auto-approve -no-color"
                 }
             }
         }
