@@ -261,7 +261,7 @@ resource "aws_route53_record" "api" {
   allow_overwrite = true
   alias {
     name                   = var.alb_dns_name
-    zone_id                = "ZP97RAE9L3BAZ" 
+    zone_id                = "ZP97RAFLXTNZK"
     evaluate_target_health = true
   }
 }
