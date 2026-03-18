@@ -1,17 +1,19 @@
-# Ignore infrastructure files
+# Terraform files and directories
 .terraform/
-.terraform.lock.hcl
 *.tf
-*.tfstate*
+*.tfstate
+*.tfstate.backup
+*.lock.hcl
 tfplan
-Jenkinsfile
-deployment.yaml
+final_plan
 
-# Ignore Git
-.git
+# CI/CD and Orchestration
+Jenkinsfile
+deployment.yml
+
+# Git internals
+.git/
 .gitignore
 
-# Ignore Python build artifacts
-__pycache__/
-*.pyc
-.env
+# Frontend (Since S3/CloudFront handles this)
+index.html

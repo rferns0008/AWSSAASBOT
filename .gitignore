@@ -1,24 +1,12 @@
-# Local .terraform directory
+# Terraform core
 .terraform/
-
-# Terraform state files
 *.tfstate
-*.tfstate.*
+*.tfstate.backup
 
-# Crash logs
-crash.log
-
-# Sensitive variable files
-*.tfvars
-*.tfvars.json
-override.tf
-override.tf.json
-
-# Terraform plan files
+# Terraform plan files (Contains sensitive infrastructure data)
 tfplan
+final_plan
 
-# Python local files
-__pycache__/
-*.py[cod]
-*$py.class
-.env
+# OS generated files
+.DS_Store
+Thumbs.db
