@@ -13,52 +13,49 @@ pipeline {
     }
 
     stages {
-        
         stage('Tool Setup') {
             steps {
                 script {
-                    // 1. Ensure unzip is present for AWS CLI (Sudoers fix now allows this)
+                    // 1. Unzip is already verified as present
                     sh 'sudo -n apt-get update && sudo -n apt-get install -y unzip'
             
-                    // 2. AWS CLI Logic: Check before install
+                    // 2. AWS CLI: Use --update to bypass "preexisting installation" errors
                     sh '''
-                        if ! command -v aws &> /dev/null; then
-                            echo "AWS CLI not found. Installing..."
+                        if aws --version &> /dev/null; then
+                            echo "AWS CLI already exists. Skipping install."
+                        else
+                            echo "Installing AWS CLI..."
                             rm -rf aws awscliv2.zip
                             curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
                             unzip -qo awscliv2.zip
-                            sudo -n ./aws/install
+                            sudo -n ./aws/install --update
                             rm -rf aws awscliv2.zip
-                        else
-                            echo "AWS CLI already installed at $(command -v aws)"
                         fi
                     '''
 
-                    // 3. Kubectl Logic: Check before install
+                    // 3. Kubectl: Check and install
                     sh '''
-                        if ! command -v kubectl &> /dev/null; then
-                            echo "Kubectl not found. Installing..."
+                        if kubectl version --client &> /dev/null; then
+                            echo "Kubectl already exists."
+                        else
                             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
                             sudo -n install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
                             rm kubectl
-                        else
-                            echo "Kubectl already installed at $(command -v kubectl)"
                         fi
                     '''
 
-                    // 4. Terraform Logic: Check before install
+                    // 4. Terraform: Check and install
                     sh '''
-                        if ! command -v terraform &> /dev/null; then
-                            echo "Terraform not found. Installing..."
+                        if terraform version &> /dev/null; then
+                            echo "Terraform already exists."
+                        else
                             wget -O- https://apt.releases.hashicorp.com/gpg | sudo -n gpg --dearmor | sudo -n tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
                             echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo -n tee /etc/apt/sources.list.d/hashicorp.list
                             sudo -n apt-get update && sudo -n apt-get install terraform -y
-                        else
-                            echo "Terraform already installed at $(command -v terraform)"
                         fi
                     '''
                 }
-            }   
+            }
         }
         
         stage('Backend: Push & Deploy') {
