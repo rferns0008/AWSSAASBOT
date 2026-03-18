@@ -16,14 +16,15 @@ pipeline {
         stage('Tool Setup') {
             steps {
                 script {
-                    // Check for unzip, required for AWS CLI installation
+                    // Install unzip, required for AWS CLI installation
                     sh 'sudo -n apt-get update && sudo -n apt-get install -y unzip'
             
                     // Install AWS CLI if missing
                     sh '''
                         if ! command -v aws &> /dev/null; then
+                            rm -rf aws awscliv2.zip  # Clean up any partial previous downloads
                             curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-                            unzip -q awscliv2.zip
+                            unzip -qo awscliv2.zip   # -o forces overwrite; -q keeps logs quiet
                             sudo -n ./aws/install
                             rm -rf aws awscliv2.zip
                         fi
@@ -39,7 +40,7 @@ pipeline {
                     // Install terraform if missing
                     sh '''
                         if ! command -v terraform &> /dev/null; then
-                            wget -O- https://apt.releases.hashicorp.com/gpg | sudo -n gpg --dearmor | sudo -n tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
+                        wget -O- https://apt.releases.hashicorp.com/gpg | sudo -n gpg --dearmor | sudo -n tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
                             echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo -n tee /etc/apt/sources.list.d/hashicorp.list
                             sudo -n apt-get update && sudo -n apt-get install terraform -y
                         fi
