@@ -13,21 +13,46 @@ pipeline {
     }
 
     stages {
-        stage('Checkout SCM') {
+        stage('Tool Setup') {
             steps {
-                checkout scm
+                script {
+                    // Install AWS CLI if missing
+                    sh '''
+                        if ! command -v aws &> /dev/null; then
+                            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                            unzip -q awscliv2.zip
+                            sudo ./aws/install
+                            rm -rf aws awscliv2.zip
+                        fi
+                    '''
+                    // Install kubectl if missing
+                    sh '''
+                        if ! command -v kubectl &> /dev/null; then
+                            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                            sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+                            rm kubectl
+                        fi
+                    '''
+                    // Install terraform if missing
+                    sh '''
+                        if ! command -v terraform &> /dev/null; then
+                            sudo apt-get update && sudo apt-get install -y gnupg software-properties-common
+                            wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
+                            echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+                            sudo apt-get update && sudo apt-get install terraform -y
+                        fi
+                    '''
+                }
             }
         }
 
         stage('Backend: Push & Deploy') {
             steps {
                 script {
-                    // Restoring the specific shell-based login and build flow from March 17th
                     sh "aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_REPO}"
                     sh "docker build --no-cache -t ${ECR_REPO}:latest ."
                     sh "docker push ${ECR_REPO}:latest"
                     
-                    // Kubernetes deployment logic restored to follow the push immediately
                     sh "aws eks update-kubeconfig --region ${REGION} --name ${CLUSTER_NAME}"
                     sh "kubectl apply -f deployment.yml -n ${NAMESPACE}"
                     sh "kubectl rollout restart deployment flask-chatbot -n ${NAMESPACE}"
@@ -38,14 +63,13 @@ pipeline {
         stage('Deploy Infra') {
             steps {
                 script {
-                    // Running Terraform from the root as per your project structure
                     sh "terraform init -no-color"
                     sh "terraform apply -auto-approve -no-color"
                 }
             }
         }
 
-        stage('Frontend: Sync S3') {
+        stage('Sync Frontend') {
             steps {
                 script {
                     sh "aws s3 sync . s3://${S3_BUCKET} --exclude '*' --include '*.html' --include '*.js' --include '*.css' --quiet"
