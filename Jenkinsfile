@@ -71,6 +71,7 @@ pipeline {
                     // 2. Restart Controller & Apply Manifests
                     sh 'kubectl rollout restart deployment aws-load-balancer-controller -n kube-system'
                     sh 'kubectl apply -f deployment.yml'
+                    sh "kubectl rollout restart deployment flask-chatbot -n chatbot-production"
 
                     // 3. Wait for ALB and extract URL cleanly
                     // Note the >&2 on the echo command - this prevents it from poisoning the variable
