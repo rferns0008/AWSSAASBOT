@@ -2,7 +2,7 @@ FROM python:3.11-slim
 RUN groupadd -r flaskuser && useradd -r -g flaskuser flaskuser
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade --force-reinstall -r requirements.txt
 COPY app.py .
 RUN chown -R flaskuser:flaskuser /app
 USER flaskuser
