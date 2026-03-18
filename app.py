@@ -13,7 +13,10 @@ CORS(app, resources={r"/*": {"origins": ["https://rferns-0009.xyz"]}})
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY",""))
+client = OpenAI(
+    api_key=os.environ.get("OPENAI_API_KEY",""),
+    http_client=None # Forces the SDK to ignore the broken internal httpx proxy logic
+)
 
 def is_saas_or_it_related(user_input: str) -> bool:
     keywords = [
@@ -65,10 +68,6 @@ def chatbot():
     except Exception as e:
         logger.exception("Internal server error")
         return jsonify({"error":"Internal server error", "details": str(e)}), 500
-    
-@app.route("/", methods=["GET"])
-def health_check():
-    return jsonify({"status": "healthy"}), 200
 
 @app.route("/", methods=["GET"])
 def root():
