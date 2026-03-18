@@ -59,9 +59,12 @@ pipeline {
                     sh '''
                         if ! command -v terraform &> /dev/null; then
                             echo "Terraform not found. Installing..."
-                            wget -qO- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+                            # Add --yes to gpg to skip overwrite prompts
+                            wget -qO- https://apt.releases.hashicorp.com/gpg | sudo gpg --yes --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
                             echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
                             sudo apt update && sudo apt-get install terraform -y
+                        else
+                            echo "Terraform already installed at $(command -v terraform)"
                         fi
                     '''
 
