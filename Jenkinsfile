@@ -10,6 +10,10 @@ pipeline {
         S3_BUCKET       = "frontend-assets-rferns-0009.xyz"
     }
 
+    triggers {
+        githubPush() // This enables the 'GitHub hook trigger' automatically
+    }
+
     stages {
         stage('Checkout') {
             steps {
