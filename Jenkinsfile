@@ -56,6 +56,27 @@ pipeline {
             }
         }
 
+        stage('Docker Build & Push') {
+            steps {
+                script {
+                    // Use the ECR URI from your AWS Console
+                    def ecrRepo = "078083578991.dkr.ecr.ap-south-1.amazonaws.com/flask-chatbot"
+            
+                    // 1. Authenticate Docker to ECR
+                    sh "aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin ${ecrRepo}"
+            
+                    // 2. Build with --no-cache to ensure the 'httpx' fix is actually installed
+                    sh "docker build --no-cache -t ${ecrRepo}:latest ."
+            
+                    // 3. Push the new image
+                    sh "docker push ${ecrRepo}:latest"
+            
+                    // 4. Force Kubernetes to pull the new 'latest' image immediately
+                    sh "kubectl rollout restart deployment flask-chatbot -n chatbot-production"
+                }
+            }
+        }
+
         stage('Deploy to EKS & Configure DNS') {
             steps {
                 script {
