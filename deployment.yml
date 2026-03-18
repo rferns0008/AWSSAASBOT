@@ -19,16 +19,13 @@ metadata:
   name: chatbot-ingress
   namespace: chatbot-production
   annotations:
-    # This triggers the creation of an ALB
-    kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    # Predictable name for Terraform
     alb.ingress.kubernetes.io/load-balancer-name: "chatbot-api-alb"
-    # SSL Configuration
     alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:ap-south-1:078083578991:certificate/e583e1f8-ee5b-485d-ac94-4eac34d1d887"
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
 spec:
+  ingressClassName: alb  # <--- THIS IS THE CRITICAL ADDITION
   rules:
     - host: "api.rferns-0009.xyz"
       http:
