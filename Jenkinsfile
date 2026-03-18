@@ -13,42 +13,54 @@ pipeline {
     }
 
     stages {
+        
         stage('Tool Setup') {
             steps {
                 script {
-                    // Install unzip, required for AWS CLI installation
+                    // 1. Ensure unzip is present for AWS CLI (Sudoers fix now allows this)
                     sh 'sudo -n apt-get update && sudo -n apt-get install -y unzip'
             
-                    // Install AWS CLI if missing
+                    // 2. AWS CLI Logic: Check before install
                     sh '''
                         if ! command -v aws &> /dev/null; then
-                            rm -rf aws awscliv2.zip  # Clean up any partial previous downloads
+                            echo "AWS CLI not found. Installing..."
+                            rm -rf aws awscliv2.zip
                             curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-                            unzip -qo awscliv2.zip   # -o forces overwrite; -q keeps logs quiet
+                            unzip -qo awscliv2.zip
                             sudo -n ./aws/install
                             rm -rf aws awscliv2.zip
+                        else
+                            echo "AWS CLI already installed at $(command -v aws)"
                         fi
                     '''
-                    // Install kubectl if missing
+
+                    // 3. Kubectl Logic: Check before install
                     sh '''
                         if ! command -v kubectl &> /dev/null; then
+                            echo "Kubectl not found. Installing..."
                             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
                             sudo -n install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
                             rm kubectl
+                        else
+                            echo "Kubectl already installed at $(command -v kubectl)"
                         fi
                     '''
-                    // Install terraform if missing
+
+                    // 4. Terraform Logic: Check before install
                     sh '''
                         if ! command -v terraform &> /dev/null; then
-                        wget -O- https://apt.releases.hashicorp.com/gpg | sudo -n gpg --dearmor | sudo -n tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
+                            echo "Terraform not found. Installing..."
+                            wget -O- https://apt.releases.hashicorp.com/gpg | sudo -n gpg --dearmor | sudo -n tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
                             echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo -n tee /etc/apt/sources.list.d/hashicorp.list
                             sudo -n apt-get update && sudo -n apt-get install terraform -y
+                        else
+                            echo "Terraform already installed at $(command -v terraform)"
                         fi
                     '''
                 }
-            }
+            }   
         }
-
+        
         stage('Backend: Push & Deploy') {
             steps {
                 script {
