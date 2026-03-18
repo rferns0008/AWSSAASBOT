@@ -107,10 +107,12 @@ module "eks" {
   }
 }
 
-# --- 4. AWS LOAD BALANCER CONTROLLER (PINNED TO V5) ---
+# --- 4. AWS LOAD BALANCER CONTROLLER ---
+
+# 1. The Base Role (Created by the module)
 module "lb_controller_role" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-  version = "5.44.0" # Aligns with AWS Provider 5.x
+  version = "5.44.0" 
 
   role_name = "aws-load-balancer-controller-role"
   attach_load_balancer_controller_policy = true
@@ -123,6 +125,28 @@ module "lb_controller_role" {
   }
 }
 
+# 2. The Inline Patch (Injects the missing v6 permissions into the v5 role)
+resource "aws_iam_role_policy" "lb_controller_patch" {
+  name = "lb-controller-missing-perms"
+  role = module.lb_controller_role.iam_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeRouteTables",
+          "elasticloadbalancing:DescribeListenerAttributes",
+          "elasticloadbalancing:DescribeCapacityReservation"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# 3. The Helm Release (Installs the software using the patched role)
 resource "helm_release" "aws_lb_controller" {
   name       = "aws-load-balancer-controller"
   repository = "https://aws.github.io/eks-charts"
@@ -130,7 +154,6 @@ resource "helm_release" "aws_lb_controller" {
   namespace  = "kube-system"
   depends_on = [module.eks]
 
-  # In v3.x, 'set' is an argument (list of objects), not a repeatable block
   set = [
     { name = "clusterName", value = module.eks.cluster_name },
     { name = "serviceAccount.create", value = "true" },

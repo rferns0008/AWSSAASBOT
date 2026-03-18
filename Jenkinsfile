@@ -52,15 +52,32 @@ pipeline {
             }
         }
 
-        stage('Backend: Push & Deploy') {
+        stage('Deploy to EKS & Configure DNS') {
             steps {
                 script {
-                    sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_URL}"
-                    def appImage = docker.build("${ECR_URL}/${IMAGE_NAME}:${env.BUILD_NUMBER}")
-                    appImage.push()
-                    
-                    sh "kubectl apply -f deployment.yml"
-                    sh "kubectl set image deployment/flask-chatbot chatbot-container=${ECR_URL}/${IMAGE_NAME}:${env.BUILD_NUMBER} -n chatbot-production"
+                    // 1. (Optional for this specific fix) Restart the controller to pick up new IAM perms
+                    sh 'kubectl rollout restart deployment aws-load-balancer-controller -n kube-system'
+            
+                    // 2. Apply the Kubernetes manifests
+                    sh 'kubectl apply -f deployment.yml'
+
+                    // 3. Wait for AWS to provision the ALB and extract the URL
+                    env.ALB_HOSTNAME = sh(script: '''
+                        HOSTNAME=""
+                        while [ -z "$HOSTNAME" ]; do
+                            echo "Waiting for AWS to provision the ALB..."
+                            sleep 15
+                            HOSTNAME=$(kubectl get ingress chatbot-ingress -n chatbot-production -o jsonpath="{.status.loadBalancer.ingress[0].hostname}")
+                        done
+                        echo "$HOSTNAME"
+                    ''', returnStdout: true).trim()
+
+                    echo "Successfully retrieved ALB Address: ${env.ALB_HOSTNAME}"
+
+                    // 4. Run Terraform to create the Route 53 record pointing to the new ALB
+                    dir('.terraform') { // Or wherever your Terraform files are located
+                        sh "terraform apply -var=\"alb_dns_name=${env.ALB_HOSTNAME}\" -auto-approve"
+                    }
                 }
             }
         }
