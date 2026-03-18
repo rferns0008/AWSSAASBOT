@@ -78,31 +78,59 @@ module "vpc" {
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.0"
-  cluster_name    = local.cluster_name
-  cluster_version = "1.34"
-  vpc_id          = module.vpc.vpc_id
-  subnet_ids      = module.vpc.private_subnets
-  cluster_endpoint_public_access           = true
+
+  cluster_name    = "secure-eks-testing"
+  cluster_version = "1.30"
+
+  cluster_endpoint_public_access = true
+
+  vpc_id                   = module.vpc.vpc_id
+  subnet_ids               = module.vpc.private_subnets
+  control_plane_subnet_ids = module.vpc.public_subnets
+
+  # 1. Allows whoever creates/updates the cluster (like Jenkins) to be an admin
   enable_cluster_creator_admin_permissions = true
 
-  node_security_group_additional_rules = {
-    ingress_flask_5000 = {
-      description = "Allow Load Balancer to reach Flask"
-      protocol    = "tcp"
-      from_port   = 5000
-      to_port     = 5000
-      type        = "ingress"
-      cidr_blocks = ["0.0.0.0/0"]
+  # 2. Permanently hardcodes your personal IAM user as a cluster admin
+  access_entries = {
+    rahul_admin = {
+      kubernetes_groups = []
+      principal_arn     = "arn:aws:iam::078083578991:user/Rahul"
+
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
     }
   }
 
+  # 3. Your existing node group configuration
   eks_managed_node_groups = {
     testing_nodes = {
-      instance_types = ["t3.small"]
-      min_size = 1
-      max_size = 2
-      desired_size = 1
+      min_size     = 1
+      max_size     = 3
+      desired_size = 2
+
+      instance_types = ["t3.medium"]
       capacity_type  = "SPOT"
+      
+      # Keep any existing custom tags or configurations you had here
+    }
+  }
+
+  # 4. Your existing security group rules (like port 5000 for the ALB)
+  node_security_group_additional_rules = {
+    ingress_flask_5000 = {
+      description                   = "Allow ALB to reach Flask on port 5000"
+      protocol                      = "tcp"
+      from_port                     = 5000
+      to_port                       = 5000
+      type                          = "ingress"
+      source_cluster_security_group = true
     }
   }
 }

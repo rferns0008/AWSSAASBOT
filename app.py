@@ -65,6 +65,10 @@ def chatbot():
     except Exception as e:
         logger.exception("Internal server error")
         return jsonify({"error":"Internal server error", "details": str(e)}), 500
+    
+@app.route("/", methods=["GET"])
+def health_check():
+    return jsonify({"status": "healthy"}), 200
 
 @app.route("/", methods=["GET"])
 def root():
