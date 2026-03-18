@@ -4,7 +4,7 @@ pipeline {
         REGION          = "ap-south-1"
         ECR_REPO        = "078083578991.dkr.ecr.ap-south-1.amazonaws.com/chatbot-app"
         NAMESPACE       = "chatbot-production"
-        CLUSTER_NAME    = "chatbot-cluster"
+        CLUSTER_NAME    = "secure-eks-testing"
         S3_BUCKET       = "frontend-assets-rferns-0009.xyz"
     }
     
