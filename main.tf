@@ -18,7 +18,7 @@ terraform {
 
 variable "alb_dns_name" {
   type    = string
-  default = ""
+  default = "chatbot-api-alb-1252146360.ap-south-1.elb.amazonaws.com"
 }
 locals {
   cluster_name    = "secure-eks-testing"
