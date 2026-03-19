@@ -1,10 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-chatbot
+  namespace: chatbot-production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chatbot
+  template:
+    metadata:
+      labels:
+        app: chatbot
+    spec:
+      containers:
+      - name: chatbot-container
+        # UPDATED: Use :latest to align with your Jenkins pipeline push
+        image: 078083578991.dkr.ecr.ap-south-1.amazonaws.com/chatbot-app:latest
+        # CRITICAL: Forces the node to pull the new image even if a local one exists
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        ports:
+        - containerPort: 5000
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-credentials
+              key: OPENAI_API_KEY
+---
 apiVersion: v1
 kind: Service
 metadata:
   name: chatbot-service
   namespace: chatbot-production
 spec:
-  # Changed from LoadBalancer to NodePort
   type: NodePort 
   selector:
     app: chatbot
@@ -25,7 +61,7 @@ metadata:
     alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:ap-south-1:078083578991:certificate/e583e1f8-ee5b-485d-ac94-4eac34d1d887"
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
 spec:
-  ingressClassName: alb  # <--- THIS IS THE CRITICAL ADDITION
+  ingressClassName: alb
   rules:
     - host: "api.rferns-0009.xyz"
       http:
