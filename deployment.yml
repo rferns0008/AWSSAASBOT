@@ -15,9 +15,7 @@ spec:
     spec:
       containers:
       - name: chatbot-container
-        # UPDATED: Use :latest to align with your Jenkins pipeline push
         image: 078083578991.dkr.ecr.ap-south-1.amazonaws.com/chatbot-app:latest
-        # CRITICAL: Forces the node to pull the new image even if a local one exists
         imagePullPolicy: Always
         resources:
           requests:
@@ -26,18 +24,20 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "500m"
-            livenessProbe:
+        # --- FIXED: Probes now use the root '/' path ---
+        livenessProbe:
           httpGet:
             path: /
             port: 5000
-          initialDelaySeconds: 5
-          periodSeconds: 10
+          initialDelaySeconds: 10
+          periodSeconds: 15
         readinessProbe:
           httpGet:
             path: /
             port: 5000
           initialDelaySeconds: 5
           periodSeconds: 10
+        # -----------------------------------------------
         ports:
         - containerPort: 5000
         env:
@@ -46,42 +46,3 @@ spec:
             secretKeyRef:
               name: openai-credentials
               key: OPENAI_API_KEY
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: chatbot-service
-  namespace: chatbot-production
-spec:
-  type: NodePort 
-  selector:
-    app: chatbot
-  ports:
-    - port: 80
-      targetPort: 5000
-      protocol: TCP
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: chatbot-ingress
-  namespace: chatbot-production
-  annotations:
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/load-balancer-name: "chatbot-api-alb"
-    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:ap-south-1:078083578991:certificate/e583e1f8-ee5b-485d-ac94-4eac34d1d887"
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
-spec:
-  ingressClassName: alb
-  rules:
-    - host: "api.rferns-0009.xyz"
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: chatbot-service
-                port:
-                  number: 80
