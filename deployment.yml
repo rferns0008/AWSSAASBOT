@@ -26,6 +26,18 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "500m"
+            livenessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 10
         ports:
         - containerPort: 5000
         env:
