@@ -1,9 +1,5 @@
 pipeline {
-    agent {
-        node {
-            label 'built-in'
-        }
-    }
+    agent any
     environment {
         REGION          = "ap-south-1"
         ECR_REPO        = "078083578991.dkr.ecr.ap-south-1.amazonaws.com/chatbot-app"
@@ -59,18 +55,24 @@ pipeline {
             }
         }
     
-        
         stage('Backend: Push & Deploy') {
+            // Add this 'withCredentials' block to pull the secret from Jenkins UI
             steps {
-                script {
-                    sh "aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_REPO}"
-                    sh "docker build --no-cache -t ${ECR_REPO}:latest ."
-                    sh "docker push ${ECR_REPO}:latest"
-                    
-                    sh "aws eks update-kubeconfig --region ${REGION} --name ${CLUSTER_NAME}"
-                    sh "kubectl apply -f deployment.yml -n ${NAMESPACE}"
-                    sh "kubectl rollout restart deployment flask-chatbot -n ${NAMESPACE}"
-                }
+                withCredentials([string(credentialsId: 'OPENAI_API_KEY', variable: 'OPENAI_KEY')]) {
+                    script {
+                        sh "aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ECR_REPO}"
+                        sh "docker build --no-cache -t ${ECR_REPO}:latest ."
+                        sh "docker push ${ECR_REPO}:latest"
+                
+                        sh "aws eks update-kubeconfig --region ${REGION} --name ${CLUSTER_NAME}"
+                
+                        // Create or update the Kubernetes Secret using the Jenkins credential
+                        sh "kubectl create secret generic openai-credentials --from-literal=OPENAI_API_KEY=${OPENAI_KEY} -n ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
+                
+                        sh "kubectl apply -f deployment.yml -n ${NAMESPACE}"
+                        sh "kubectl rollout restart deployment flask-chatbot -n ${NAMESPACE}"
+                    }
+                }   
             }
         }
 
