@@ -16,30 +16,40 @@ pipeline {
         stage('Tool Setup') {
             steps {
                 script {
-                    // 1. Install unzip and force-fix the tool paths
                     sh 'sudo -n apt-get update && sudo -n apt-get install -y unzip'
             
-                    // 2. AWS CLI: Update existing and ensure it's in the path
+                    // AWS CLI: Skip if already verified in previous successful step
                     sh '''
-                        rm -rf aws awscliv2.zip
-                        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-                        unzip -qo awscliv2.zip
-                        sudo -n ./aws/install --update
-                        sudo -n ln -sf /usr/local/bin/aws /usr/bin/aws
+                        if ! command -v aws &> /dev/null; then
+                            rm -rf aws awscliv2.zip
+                            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                            unzip -qo awscliv2.zip
+                            sudo -n ./aws/install --update
+                            sudo -n ln -sf /usr/local/bin/aws /usr/bin/aws
+                        fi
                     '''
 
-                    // 3. Kubectl: Download and force into the global path
+                    // Kubectl: Skip if already verified in previous successful step
                     sh '''
-                        curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
-                        sudo -n install -o root -g root -m 0755 kubectl /usr/bin/kubectl
-                        sudo -n ln -sf /usr/bin/kubectl /usr/local/bin/kubectl
+                        if ! command -v kubectl &> /dev/null; then
+                            curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
+                            sudo -n install -o root -g root -m 0755 kubectl /usr/bin/kubectl
+                            sudo -n ln -sf /usr/bin/kubectl /usr/local/bin/kubectl
+                        fi
                     '''
 
-                    // 4. Terraform: Force install
+                    // Terraform: Added a "Wait for Lock" to prevent the Exit Code 100
                     sh '''
-                        wget -O- https://apt.releases.hashicorp.com/gpg | sudo -n gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg --yes
-                        echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo -n tee /etc/apt/sources.list.d/hashicorp.list
-                        sudo -n apt-get update && sudo -n apt-get install terraform -y
+                        if ! command -v terraform &> /dev/null; then
+                            wget -O- https://apt.releases.hashicorp.com/gpg | sudo -n gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg --yes
+                            echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo -n tee /etc/apt/sources.list.d/hashicorp.list
+                    
+                            # Wait for any background apt processes to finish
+                            while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do echo "Waiting for apt lock..."; sleep 2; done
+                    
+                            sudo -n apt-get update
+                            sudo -n apt-get install terraform -y
+                        fi
                     '''
                 }
             }
