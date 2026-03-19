@@ -17,3 +17,4 @@ deployment.yml
 
 # Frontend (Since S3/CloudFront handles this)
 index.html
+EKS-Toggle.ps1
