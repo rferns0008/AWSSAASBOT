@@ -65,6 +65,9 @@ pipeline {
                         sh "docker push ${ECR_REPO}:latest"
                 
                         sh "aws eks update-kubeconfig --region ${REGION} --name ${CLUSTER_NAME}"
+
+                        // create namespace
+                        sh "kubectl create namespace chatbot-production --dry-run=client -o yaml | kubectl apply -f -"
                 
                         // Create or update the Kubernetes Secret using the Jenkins credential
                         sh "kubectl create secret generic openai-credentials --from-literal=OPENAI_API_KEY=${OPENAI_KEY} -n ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
