@@ -131,7 +131,6 @@ resource "aws_iam_role_policy" "jenkins_management_patch" {
     Statement = [
       {
         Effect   = "Allow"
-        # Grants broad read/write access so Terraform can manage the entire stack
         Action   = [
           "eks:*",
           "ecr:*",
@@ -140,7 +139,10 @@ resource "aws_iam_role_policy" "jenkins_management_patch" {
           "route53:*",
           "cloudfront:*",
           "wafv2:*",
-          "iam:*" # Required for Terraform to manage EKS roles and policies
+          "iam:*",
+          # ADD THESE TWO LINES:
+          "kms:*",
+          "logs:*"
         ]
         Resource = "*"
       }
