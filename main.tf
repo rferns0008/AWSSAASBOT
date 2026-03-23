@@ -80,16 +80,14 @@ module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.0"
 
-  cluster_name                   = local.cluster_name
-  cluster_endpoint_public_access = true
+  cluster_name = local.cluster_name
+  # ... (keep VPC and other settings)
 
-  vpc_id                   = module.vpc.vpc_id
-  subnet_ids               = module.vpc.private_subnets
-  control_plane_subnet_ids = module.vpc.public_subnets
-
+  # This automatically gives the current caller (Jenkins) Admin rights
   enable_cluster_creator_admin_permissions = true
 
   access_entries = {
+    # Keep only your personal user here
     rahul_admin = {
       principal_arn = "arn:aws:iam::078083578991:user/Rahul"
       policy_associations = {
@@ -99,16 +97,8 @@ module "eks" {
         }
       }
     }
-    jenkins_agent = {
-      principal_arn = local.jenkins_role_arn
-      policy_associations = {
-        admin = {
-          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-          access_scope = { type = "cluster" }
-        }
-      }
-    }
   }
+}
 
   eks_managed_node_groups = {
     testing_nodes = {
