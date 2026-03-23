@@ -1,20 +1,33 @@
-# Terraform files and directories
+# --- Infrastructure & Tooling (Avoids 'No Space Left' Errors) ---
+aws/
+awscliv2.zip
+kubectl
+terraform
+terraform.exe
 .terraform/
 *.tf
-*.tfstate
-*.tfstate.backup
+*.tfstate*
 *.lock.hcl
-tfplan
-final_plan
 
-# CI/CD and Orchestration
+# --- CI/CD & Scripts ---
 Jenkinsfile
 deployment.yml
+EKS-Toggle.ps1
 
-# Git internals
+# --- Git & Metadata ---
 .git/
 .gitignore
+.dockerignore
+.DS_Store
 
-# Frontend (Since S3/CloudFront handles this)
+# --- Frontend Assets (Handled by S3) ---
 index.html
-EKS-Toggle.ps1
+
+# --- Python Environment ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+.venv/

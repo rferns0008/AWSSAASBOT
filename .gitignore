@@ -1,12 +1,30 @@
-# Terraform core
+# --- Terraform Core & State ---
 .terraform/
 *.tfstate
 *.tfstate.backup
+*.tfvars
+*.tfvars.json
+.terraform.lock.hcl
 
-# Terraform plan files (Contains sensitive infrastructure data)
+# --- Terraform Plans ---
 tfplan
 final_plan
 
-# OS generated files
+# --- Local Tooling Binaries ---
+awscliv2.zip
+aws/
+kubectl
+terraform
+terraform.exe
+
+# --- Python & OS ---
+__pycache__/
+.env
+venv/
+.venv/
 .DS_Store
 Thumbs.db
+
+# --- Sensitive Credentials ---
+*.pem
+*.key
