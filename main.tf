@@ -24,7 +24,6 @@ locals {
   domain_name     = "rferns-0009.xyz"
   hosted_zone_id  = "Z08038211C59XXRLVKOL2" 
   certificate_arn = "arn:aws:acm:us-east-1:078083578991:certificate/d161c0cb-2f9e-4a9b-b58c-c6c3b6790753"
-  # Define the management role for re-use
   jenkins_role_arn = "arn:aws:iam::078083578991:role/jenkins-management-role"
 }
 
@@ -38,7 +37,6 @@ provider "aws" {
 }
 
 provider "helm" {
-  # FIXED: Added '=' for newer Helm provider syntax
   kubernetes = {
     host                   = module.eks.cluster_endpoint
     cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
@@ -50,7 +48,7 @@ provider "helm" {
   }
 }
 
-# --- 2. NETWORK (172.16.x.x CIDR) ---
+# --- 2. NETWORK ---
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0"
@@ -77,7 +75,7 @@ resource "aws_ecr_repository" "chatbot_app" {
   image_scanning_configuration { scan_on_push = true }
 }
 
-# --- 4. EKS & ACCESS MANAGEMENT ---
+# --- 4. EKS ---
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.0"
@@ -91,10 +89,9 @@ module "eks" {
 
   enable_cluster_creator_admin_permissions = true
 
-  # FIXED: Added both personal and Jenkins agent access entries
   access_entries = {
     rahul_admin = {
-      principal_arn     = "arn:aws:iam::078083578991:user/Rahul"
+      principal_arn = "arn:aws:iam::078083578991:user/Rahul"
       policy_associations = {
         admin = {
           policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
@@ -102,7 +99,6 @@ module "eks" {
         }
       }
     }
-    # CRITICAL: This allows the Jenkins Pipeline to run 'kubectl' commands
     jenkins_agent = {
       principal_arn = local.jenkins_role_arn
       policy_associations = {
@@ -125,43 +121,34 @@ module "eks" {
   }
 }
 
-# --- 5. IAM PATCH FOR JENKINS ROLE ---
-# FIXED: Grants the role permission to DescribeCluster and use ECR
+# --- 5. JENKINS ROLE PATCH (FULL INFRA ACCESS) ---
 resource "aws_iam_role_policy" "jenkins_management_patch" {
   name = "jenkins-management-access-patch"
-  role = "jenkins-management-role" 
+  role = "jenkins-management-role"
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
         Effect   = "Allow"
-        Action   = ["eks:DescribeCluster", "eks:ListClusters"]
-        Resource = "arn:aws:eks:ap-south-1:078083578991:cluster/${local.cluster_name}"
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["ecr:GetAuthorizationToken"]
-        Resource = "*"
-      },
-      {
-        Effect   = "Allow"
+        # Grants broad read/write access so Terraform can manage the entire stack
         Action   = [
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage",
-          "ecr:PutImage",
-          "ecr:InitiateLayerUpload",
-          "ecr:UploadLayerPart",
-          "ecr:CompleteLayerUpload"
+          "eks:*",
+          "ecr:*",
+          "ec2:*",
+          "s3:*",
+          "route53:*",
+          "cloudfront:*",
+          "wafv2:*",
+          "iam:*" # Required for Terraform to manage EKS roles and policies
         ]
-        Resource = aws_ecr_repository.chatbot_app.arn
+        Resource = "*"
       }
     ]
   })
 }
 
-# --- 6. AWS LOAD BALANCER CONTROLLER ---
+# --- 6. LOAD BALANCER CONTROLLER ---
 module "lb_controller_role" {
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "5.44.0" 
@@ -177,7 +164,6 @@ module "lb_controller_role" {
   }
 }
 
-# FIXED: Missing permissions required for ALB provisioning
 resource "aws_iam_role_policy" "lb_controller_patch" {
   name = "lb-controller-missing-perms"
   role = module.lb_controller_role.iam_role_name
@@ -218,7 +204,7 @@ resource "helm_release" "aws_lb_controller" {
 # --- 7. S3 & CLOUDFRONT ---
 resource "aws_s3_bucket" "frontend" {
   bucket        = "frontend-assets-${local.domain_name}"
-  force_destroy = true # FIXED: Prevents BucketNotEmpty errors
+  force_destroy = true 
 }
 
 resource "aws_cloudfront_origin_access_control" "default" {
@@ -264,7 +250,6 @@ resource "aws_wafv2_web_acl" "main" {
   provider = aws.us_east_1
   name     = "chatbot-waf-0009"
   scope    = "CLOUDFRONT"
-  # FIXED: Proper block syntax
   default_action {
     allow {}
   }
