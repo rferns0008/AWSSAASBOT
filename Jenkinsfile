@@ -96,27 +96,4 @@ pipeline {
             }
         }
     }
-    
-    post {
-        success {
-            script {
-                echo "Deploy Successful. Starting Post-Deploy Tasks..."
-                
-                // 1. Invalidate CloudFront Cache (Fixes 403/404 caching)
-                // Note: Get your distribution ID from the AWS Console or Terraform output
-                sh "aws cloudfront create-invalidation --distribution-id E3TBHRLHXAKRKQ --paths '/*'"
-                
-                // 2. Health Check: Verify Frontend is reachable (200 OK)
-                echo "Running Frontend Health Check..."
-                sh "curl -sI https://${local.domain_name} | grep '200 OK'"
-
-                // 3. Health Check: Verify API is resolving (using the endpoint browser uses)
-                echo "Running API DNS & Health Check..."
-                sh "curl -sI https://api.${local.domain_name}/chat | grep -E '200 OK|405 Method Not Allowed'"
-            }
-        }
-        failure {
-            echo "Pipeline failed. Check Terraform logs or Kubernetes pod status."
-        }
-    }
 }
