@@ -69,8 +69,15 @@ metadata:
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    # Ensure this subnets tagging matches your VPC module in main.tf
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    
+    # 1. Open both HTTP and HTTPS listeners
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    
+    # 2. Force HTTP traffic to redirect to HTTPS
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    
+    # 3. Attach your SSL Certificate (MUST BE IN ap-south-1)
+    alb.ingress.kubernetes.io/certificate-arn: 'arn:aws:acm:ap-south-1:078083578991:certificate/e583e1f8-ee5b-485d-ac94-4eac34d1d887'
 spec:
   ingressClassName: alb
   rules:
