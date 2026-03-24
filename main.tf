@@ -80,14 +80,10 @@ module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.0"
 
-  cluster_name = local.cluster_name
-  # ... (keep VPC and other settings)
-
-  # This automatically gives the current caller (Jenkins) Admin rights
-  enable_cluster_creator_admin_permissions = true
+  cluster_name    = local.cluster_name
+  # ... other settings (vpc_id, subnet_ids, etc.)
 
   access_entries = {
-    # Keep only your personal user here
     rahul_admin = {
       principal_arn = "arn:aws:iam::078083578991:user/Rahul"
       policy_associations = {
@@ -98,8 +94,8 @@ module "eks" {
       }
     }
   }
-}
 
+  # Ensure this is INSIDE the module "eks" block
   eks_managed_node_groups = {
     testing_nodes = {
       min_size     = 1
@@ -110,7 +106,7 @@ module "eks" {
     }
   }
 }
-
+}
 # --- 5. JENKINS ROLE PATCH (FULL INFRA ACCESS) ---
 resource "aws_iam_role_policy" "jenkins_management_patch" {
   name = "jenkins-management-access-patch"
