@@ -46,3 +46,40 @@ spec:
             secretKeyRef:
               name: openai-credentials
               key: OPENAI_API_KEY
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flask-chatbot-service
+  namespace: chatbot-production
+spec:
+  selector:
+    app: chatbot
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
+  type: NodePort # Required for ALB target groups
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: flask-chatbot-ingress
+  namespace: chatbot-production
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    # Ensure this subnets tagging matches your VPC module in main.tf
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: flask-chatbot-service
+                port:
+                  number: 80
