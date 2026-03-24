@@ -82,7 +82,7 @@ pipeline {
         stage('Deploy Infra') {
             steps {
                 script {
-                    sh "terraform init -no-color"
+                    sh "terraform init -migrate-state -no-color"
                     sh "terraform apply -auto-approve -no-color"
                 }
             }
