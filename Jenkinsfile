@@ -17,10 +17,7 @@ pipeline {
             steps {
                 script {
                     sh 'sudo -n apt-get update && sudo -n apt-get install -y unzip'
-                    
-                    // Docker Socket Permission Fix: Ensures app deploys work without manual SSH
-                    sh 'sudo chmod 666 /var/run/docker.sock || true'
-       
+            
                     // AWS CLI: Skip if already verified in previous successful step
                     sh '''
                         if ! command -v aws &> /dev/null; then
@@ -59,6 +56,7 @@ pipeline {
         }
     
         stage('Backend: Push & Deploy') {
+            // Add this 'withCredentials' block to pull the secret from Jenkins UI
             steps {
                 withCredentials([string(credentialsId: 'OPENAI_API_KEY', variable: 'OPENAI_KEY')]) {
                     script {
@@ -68,10 +66,10 @@ pipeline {
                 
                         sh "aws eks update-kubeconfig --region ${REGION} --name ${CLUSTER_NAME}"
 
-                        // Create namespace if missing
-                        sh "kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
+                        // create namespace
+                        sh "kubectl create namespace chatbot-production --dry-run=client -o yaml | kubectl apply -f -"
                 
-                        // Create or update the Kubernetes Secret
+                        // Create or update the Kubernetes Secret using the Jenkins credential
                         sh "kubectl create secret generic openai-credentials --from-literal=OPENAI_API_KEY=${OPENAI_KEY} -n ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
                 
                         sh "kubectl apply -f deployment.yml -n ${NAMESPACE}"
@@ -82,16 +80,9 @@ pipeline {
         }
 
         stage('Deploy Infra') {
-            when {
-                // Runs if it is the first build OR if any .tf files were modified in the commit
-                expression { 
-                    return currentBuild.number == 1 || 
-                           sh(script: "git diff --name-only HEAD^ HEAD | grep '\\.tf'", returnStatus: true) == 0 
-                }
-            }
             steps {
                 script {
-                    sh "terraform init -migrate-state -no-color"
+                    sh "terraform init -no-color"
                     sh "terraform apply -auto-approve -no-color"
                 }
             }
@@ -103,6 +94,29 @@ pipeline {
                     sh "aws s3 sync . s3://${S3_BUCKET} --exclude '*' --include '*.html' --include '*.js' --include '*.css' --quiet"
                 }
             }
+        }
+    }
+    
+    post {
+        success {
+            script {
+                echo "Deploy Successful. Starting Post-Deploy Tasks..."
+                
+                // 1. Invalidate CloudFront Cache (Fixes 403/404 caching)
+                // Note: Get your distribution ID from the AWS Console or Terraform output
+                sh "aws cloudfront create-invalidation --distribution-id E3TBHRLHXAKRKQ --paths '/*'"
+                
+                // 2. Health Check: Verify Frontend is reachable (200 OK)
+                echo "Running Frontend Health Check..."
+                sh "curl -sI https://${local.domain_name} | grep '200 OK'"
+
+                // 3. Health Check: Verify API is resolving (using the endpoint browser uses)
+                echo "Running API DNS & Health Check..."
+                sh "curl -sI https://api.${local.domain_name}/chat | grep -E '200 OK|405 Method Not Allowed'"
+            }
+        }
+        failure {
+            echo "Pipeline failed. Check Terraform logs or Kubernetes pod status."
         }
     }
 }
