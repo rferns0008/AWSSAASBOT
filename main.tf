@@ -80,8 +80,18 @@ module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.0"
 
-  cluster_name    = local.cluster_name
-  # ... other settings (vpc_id, subnet_ids, etc.)
+  cluster_name                   = local.cluster_name
+  cluster_endpoint_public_access = true
+
+  # Network Configuration
+  vpc_id                   = module.vpc.vpc_id
+  subnet_ids               = module.vpc.private_subnets
+  control_plane_subnet_ids = module.vpc.public_subnets
+
+  # Ensures VPC is fully ready before EKS attempts to read subnet IDs
+  depends_on = [module.vpc] 
+
+  enable_cluster_creator_admin_permissions = true
 
   access_entries = {
     rahul_admin = {
@@ -95,12 +105,11 @@ module "eks" {
     }
   }
 
-  # Ensure this is INSIDE the module "eks" block
   eks_managed_node_groups = {
     testing_nodes = {
-      min_size     = 1
-      max_size     = 2
-      desired_size = 1
+      min_size       = 1
+      max_size       = 2
+      desired_size   = 1
       instance_types = ["t3.small"]
       capacity_type  = "SPOT"
     }
@@ -126,7 +135,6 @@ resource "aws_iam_role_policy" "jenkins_management_patch" {
           "cloudfront:*",
           "wafv2:*",
           "iam:*",
-          # ADD THESE TWO LINES:
           "kms:*",
           "logs:*"
         ]
