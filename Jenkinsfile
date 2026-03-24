@@ -17,7 +17,10 @@ pipeline {
             steps {
                 script {
                     sh 'sudo -n apt-get update && sudo -n apt-get install -y unzip'
-            
+                    
+                    // Docker Socket Permission Fix: Ensures app deploys work without manual SSH
+                    sh 'sudo chmod 666 /var/run/docker.sock || true'
+       
                     // AWS CLI: Skip if already verified in previous successful step
                     sh '''
                         if ! command -v aws &> /dev/null; then
@@ -56,7 +59,6 @@ pipeline {
         }
     
         stage('Backend: Push & Deploy') {
-            // Add this 'withCredentials' block to pull the secret from Jenkins UI
             steps {
                 withCredentials([string(credentialsId: 'OPENAI_API_KEY', variable: 'OPENAI_KEY')]) {
                     script {
@@ -66,10 +68,10 @@ pipeline {
                 
                         sh "aws eks update-kubeconfig --region ${REGION} --name ${CLUSTER_NAME}"
 
-                        // create namespace
-                        sh "kubectl create namespace chatbot-production --dry-run=client -o yaml | kubectl apply -f -"
+                        // Create namespace if missing
+                        sh "kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
                 
-                        // Create or update the Kubernetes Secret using the Jenkins credential
+                        // Create or update the Kubernetes Secret
                         sh "kubectl create secret generic openai-credentials --from-literal=OPENAI_API_KEY=${OPENAI_KEY} -n ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
                 
                         sh "kubectl apply -f deployment.yml -n ${NAMESPACE}"
@@ -80,6 +82,13 @@ pipeline {
         }
 
         stage('Deploy Infra') {
+            when {
+                // Runs if it is the first build OR if any .tf files were modified in the commit
+                expression { 
+                    return currentBuild.number == 1 || 
+                           sh(script: "git diff --name-only HEAD^ HEAD | grep '\\.tf'", returnStatus: true) == 0 
+                }
+            }
             steps {
                 script {
                     sh "terraform init -migrate-state -no-color"

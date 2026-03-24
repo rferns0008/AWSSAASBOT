@@ -83,19 +83,29 @@ module "eks" {
   cluster_name                   = local.cluster_name
   cluster_endpoint_public_access = true
 
-  # Network Configuration
+  # NETWORK DEPENDENCY: Ensures subnets are available for fresh starts
   vpc_id                   = module.vpc.vpc_id
   subnet_ids               = module.vpc.private_subnets
   control_plane_subnet_ids = module.vpc.public_subnets
+  depends_on               = [module.vpc]
 
-  # Ensures VPC is fully ready before EKS attempts to read subnet IDs
-  depends_on = [module.vpc] 
-
-  enable_cluster_creator_admin_permissions = true
+  # IDENTITY MANAGEMENT: Fixed identities prevent 409 conflicts
+  enable_cluster_creator_admin_permissions = false
 
   access_entries = {
+    # Identity for Local PowerShell Apply (User Rahul)
     rahul_admin = {
       principal_arn = "arn:aws:iam::078083578991:user/Rahul"
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = { type = "cluster" }
+        }
+      }
+    }
+    # Identity for Jenkins Pipeline (IAM Role)
+    jenkins_agent = {
+      principal_arn = local.jenkins_role_arn
       policy_associations = {
         admin = {
           policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
