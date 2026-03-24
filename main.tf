@@ -213,6 +213,31 @@ resource "aws_s3_bucket" "frontend" {
   force_destroy = true 
 }
 
+# PATCH: Added Bucket Policy to allow CloudFront OAC Access
+resource "aws_s3_bucket_policy" "frontend_policy" {
+  bucket = aws_s3_bucket.frontend.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowCloudFrontServicePrincipalReadOnly"
+        Effect    = "Allow"
+        Principal = {
+          Service = "cloudfront.amazonaws.com"
+        }
+        Action   = "s3:GetObject"
+        Resource = "${aws_s3_bucket.frontend.arn}/*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.s3_distribution.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
 resource "aws_cloudfront_origin_access_control" "default" {
   name                              = "s3-oac-0009"
   origin_access_control_origin_type = "s3"
@@ -226,6 +251,8 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
     origin_access_control_id = aws_cloudfront_origin_access_control.default.id
     origin_id                = "S3-Frontend"
   }
+  
+  # ... (Rest of your CloudFront config remains exactly the same)
   enabled             = true
   default_root_object = "index.html"
   aliases             = [local.domain_name]
@@ -241,9 +268,11 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
       cookies { forward = "none" }
     }
   }
+  
   restrictions {
     geo_restriction { restriction_type = "none" }
   }
+  
   viewer_certificate {
     acm_certificate_arn      = local.certificate_arn
     ssl_support_method       = "sni-only"
