@@ -106,7 +106,7 @@ module "eks" {
     }
   }
 }
-}
+
 # --- 5. JENKINS ROLE PATCH (FULL INFRA ACCESS) ---
 resource "aws_iam_role_policy" "jenkins_management_patch" {
   name = "jenkins-management-access-patch"
