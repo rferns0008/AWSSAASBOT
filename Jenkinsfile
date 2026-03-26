@@ -17,8 +17,8 @@ pipeline {
             steps {
                 script {
                     sh 'sudo -n apt-get update && sudo -n apt-get install -y unzip'
-            
-                    // AWS CLI: Skip if already verified in previous successful step
+                    sh 'sudo chmod 666 /var/run/docker.sock || true'
+       
                     sh '''
                         if ! command -v aws &> /dev/null; then
                             rm -rf aws awscliv2.zip
@@ -29,7 +29,6 @@ pipeline {
                         fi
                     '''
 
-                    // Kubectl: Skip if already verified in previous successful step
                     sh '''
                         if ! command -v kubectl &> /dev/null; then
                             curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
@@ -38,15 +37,11 @@ pipeline {
                         fi
                     '''
 
-                    // Terraform: Added a "Wait for Lock" to prevent the Exit Code 100
                     sh '''
                         if ! command -v terraform &> /dev/null; then
                             wget -O- https://apt.releases.hashicorp.com/gpg | sudo -n gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg --yes
                             echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo -n tee /etc/apt/sources.list.d/hashicorp.list
-                    
-                            # Wait for any background apt processes to finish
                             while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do echo "Waiting for apt lock..."; sleep 2; done
-                    
                             sudo -n apt-get update
                             sudo -n apt-get install terraform -y
                         fi
@@ -54,9 +49,23 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy Core Infra') {
+            when {
+                expression { return currentBuild.number == 1 || sh(script: "git diff --name-only HEAD^ HEAD | grep '\\.tf'", returnStatus: true) == 0 }
+            }
+            steps {
+                script {
+                    sh "terraform init -migrate-state -no-color"
+                    
+                    // NEW: Added the kube_prometheus_stack to the Phase 1 deployment targets
+                    // This ensures Prometheus and its CRDs exist before we deploy the app
+                    sh "terraform apply -target=module.vpc -target=module.eks -target=aws_acm_certificate_validation.alb_cert_validation -target=helm_release.aws_lb_controller -target=helm_release.kube_prometheus_stack -auto-approve -no-color"
+                }
+            }
+        }
     
         stage('Backend: Push & Deploy') {
-            // Add this 'withCredentials' block to pull the secret from Jenkins UI
             steps {
                 withCredentials([string(credentialsId: 'OPENAI_API_KEY', variable: 'OPENAI_KEY')]) {
                     script {
@@ -65,24 +74,36 @@ pipeline {
                         sh "docker push ${ECR_REPO}:latest"
                 
                         sh "aws eks update-kubeconfig --region ${REGION} --name ${CLUSTER_NAME}"
-
-                        // create namespace
-                        sh "kubectl create namespace chatbot-production --dry-run=client -o yaml | kubectl apply -f -"
-                
-                        // Create or update the Kubernetes Secret using the Jenkins credential
+                        sh "kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
                         sh "kubectl create secret generic openai-credentials --from-literal=OPENAI_API_KEY=${OPENAI_KEY} -n ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
                 
+                        // Deploy the Chatbot and ALB Ingress
                         sh "kubectl apply -f deployment.yml -n ${NAMESPACE}"
+                        
+                        // NEW: Deploy the ServiceMonitor to tell Prometheus to scrape the Chatbot
+                        // This must happen after Core Infra is deployed so the CRD is recognized
+                        sh "kubectl apply -f monitor.yml"
+                        
                         sh "kubectl rollout restart deployment flask-chatbot -n ${NAMESPACE}"
                     }
                 }   
             }
         }
 
-        stage('Deploy Infra') {
+        stage('Deploy Edge Infra') {
+            when {
+                expression { return currentBuild.number == 1 || sh(script: "git diff --name-only HEAD^ HEAD | grep '\\.tf'", returnStatus: true) == 0 }
+            }
             steps {
                 script {
-                    sh "terraform init -no-color"
+                    echo "Waiting for AWS to provision the ALB..."
+                    sh '''
+                        while [ -z $(kubectl get ingress flask-chatbot-ingress -n chatbot-production -o jsonpath="{.status.loadBalancer.ingress[0].hostname}" 2>/dev/null) ]; do
+                            echo "ALB not ready yet, waiting 15 seconds..."
+                            sleep 15
+                        done
+                        echo "ALB successfully provisioned!"
+                    '''
                     sh "terraform apply -auto-approve -no-color"
                 }
             }
@@ -94,6 +115,23 @@ pipeline {
                     sh "aws s3 sync . s3://${S3_BUCKET} --exclude '*' --include '*.html' --include '*.js' --include '*.css' --quiet"
                 }
             }
+        }
+    }
+    
+    post {
+        success {
+            script {
+                echo "Deploy Successful. Running Post-Deploy Tasks..."
+                
+                sh "aws cloudfront create-invalidation --distribution-id E3TBHRLHXAKRKQ --paths '/*'"
+                
+                echo "Running Frontend & API Health Checks..."
+                sh "curl -sI https://${S3_BUCKET.replace('frontend-assets-', '')} | grep '200 OK'"
+                sh "curl -sI https://api.${S3_BUCKET.replace('frontend-assets-', '')}/chat | grep -E '200 OK|405 Method Not Allowed'"
+            }
+        }
+        failure {
+            echo "Pipeline failed. Check Terraform logs or Kubernetes pod status."
         }
     }
 }

@@ -1,10 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from prometheus_flask_exporter import PrometheusMetrics
 import logging
 import os
 from openai import OpenAI
 
 app = Flask(__name__)
+metrics = PrometheusMetrics(app) # This automatically exposes /metrics and tracks requests
 
 # Enable CORS for your specific frontend domain
 CORS(app, resources={r"/*": {"origins": ["https://rferns-0009.xyz"]}})

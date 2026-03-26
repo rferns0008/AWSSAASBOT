@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: flask-chatbot-monitor
+  namespace: chatbot-production
+  labels:
+    # This label tells the Prometheus Operator to pick up this configuration
+    release: prometheus-stack 
+spec:
+  selector:
+    matchLabels:
+      app: chatbot
+  endpoints:
+    - port: http-web
+      path: /metrics
+      interval: 15s

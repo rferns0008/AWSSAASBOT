@@ -56,7 +56,8 @@ spec:
   selector:
     app: chatbot
   ports:
-    - protocol: TCP
+    - name: http-web
+      protocol: TCP
       port: 80
       targetPort: 5000
   type: NodePort # Required for ALB target groups

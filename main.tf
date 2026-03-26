@@ -14,6 +14,14 @@ terraform {
   }
 }
 
+data "aws_security_group" "alb_sg" {
+  filter {
+    name   = "tag:ingress.k8s.aws/stack"
+    values = ["chatbot-production/flask-chatbot-ingress"] # Namespace/IngressName
+  }
+  depends_on = [helm_release.aws_lb_controller]
+}
+
 variable "alb_dns_name" {
   type    = string
   default = "dualstack.k8s-chatbotp-flaskcha-c015bdd713-1037106485.ap-south-1.elb.amazonaws.com."
@@ -310,4 +318,57 @@ resource "aws_route53_record" "api" {
     zone_id                = "ZP97RAFLXTNZK" # Always use this ID for ALBs in ap-south-1
     evaluate_target_health = true
   }
+}
+
+# --- 10. PROMETHEUS & GRAFANA ---
+resource "helm_release" "kube_prometheus_stack" {
+  name             = "prometheus-stack"
+  repository       = "https://prometheus-community.github.io/helm-charts"
+  chart            = "kube-prometheus-stack"
+  namespace        = "monitoring"
+  create_namespace = true
+  depends_on       = [module.eks]
+
+  # Enables Prometheus to find ServiceMonitors across all namespaces
+  set {
+    name  = "prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues"
+    value = "false"
+  }
+
+  # Default Grafana Admin Password (change this later)
+  set {
+    name  = "grafana.adminPassword"
+    value = "admin" 
+  }
+}
+
+# --- 11. CROSS-STACK VPC PEERING ROUTING ---
+# Find the Management VPC
+data "aws_vpc" "mgmt_vpc" {
+  filter {
+    name   = "tag:Name"
+    values = ["Management-VPC"]
+  }
+}
+
+# Find the Peering Connection created by the Management Stack
+data "aws_vpc_peering_connection" "mgmt_to_chatbot" {
+  vpc_id      = data.aws_vpc.mgmt_vpc.id
+  peer_vpc_id = module.vpc.vpc_id
+}
+
+# Add Routes: Chatbot Private Subnets -> Mgmt VPC
+resource "aws_route" "chatbot_private_to_mgmt" {
+  count                     = length(module.vpc.private_route_table_ids)
+  route_table_id            = module.vpc.private_route_table_ids[count.index]
+  destination_cidr_block    = data.aws_vpc.mgmt_vpc.cidr_block
+  vpc_peering_connection_id = data.aws_vpc_peering_connection.mgmt_to_chatbot.id
+}
+
+# Add Routes: Chatbot Public Subnets -> Mgmt VPC
+resource "aws_route" "chatbot_public_to_mgmt" {
+  count                     = length(module.vpc.public_route_table_ids)
+  route_table_id            = module.vpc.public_route_table_ids[count.index]
+  destination_cidr_block    = data.aws_vpc.mgmt_vpc.cidr_block
+  vpc_peering_connection_id = data.aws_vpc_peering_connection.mgmt_to_chatbot.id
 }
