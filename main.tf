@@ -321,7 +321,7 @@ resource "aws_route53_record" "api" {
   }
 }
 
-# --- 10. PROMETHEUS & GRAFANA ---
+# --- 10. PROMETHEUS & GRAFANA (MICRO-FOOTPRINT) ---
 resource "helm_release" "kube_prometheus_stack" {
   name             = "prometheus-stack"
   repository       = "https://prometheus-community.github.io/helm-charts"
@@ -330,16 +330,40 @@ resource "helm_release" "kube_prometheus_stack" {
   create_namespace = true
   depends_on       = [module.eks]
 
-  # Fixed Syntax: Use a list of objects for 'set'
-  set = [
-    {
-      name  = "prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues"
-      value = "false"
-    },
-    {
-      name  = "grafana.adminPassword"
-      value = "admin" 
-    }
+  values = [
+    <<-EOT
+    defaultRules:
+      create: false
+    alertmanager:
+      enabled: false
+    nodeExporter:
+      enabled: false
+    kubeStateMetrics:
+      enabled: false
+    grafana:
+      adminPassword: "admin"
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+    prometheusOperator:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+    prometheus:
+      prometheusSpec:
+        serviceMonitorSelectorNilUsesHelmValues: false
+        retention: 12h
+        resources:
+          requests:
+            cpu: 10m
+            memory: 128Mi
+          limits:
+            memory: 256Mi
+    EOT
   ]
 }
 
