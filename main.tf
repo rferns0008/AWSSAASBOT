@@ -271,6 +271,7 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
       cookies { forward = "none" }
     }
   }
+  
   restrictions {
     geo_restriction { restriction_type = "none" }
   }
@@ -329,17 +330,17 @@ resource "helm_release" "kube_prometheus_stack" {
   create_namespace = true
   depends_on       = [module.eks]
 
-  # Enables Prometheus to find ServiceMonitors across all namespaces
-  set {
-    name  = "prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues"
-    value = "false"
-  }
-
-  # Default Grafana Admin Password (change this later)
-  set {
-    name  = "grafana.adminPassword"
-    value = "admin" 
-  }
+  # Fixed Syntax: Use a list of objects for 'set'
+  set = [
+    {
+      name  = "prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues"
+      value = "false"
+    },
+    {
+      name  = "grafana.adminPassword"
+      value = "admin" 
+    }
+  ]
 }
 
 # --- 11. CROSS-STACK VPC PEERING ROUTING ---
