@@ -52,6 +52,8 @@ kind: Service
 metadata:
   name: flask-chatbot-service
   namespace: chatbot-production
+  labels:
+    app: chatbot
 spec:
   selector:
     app: chatbot
