@@ -13,6 +13,7 @@ terraform.exe
 Jenkinsfile
 deployment.yml
 EKS-Toggle.ps1
+EKS-Toggle.sh
 
 # --- Git & Metadata ---
 .git/
