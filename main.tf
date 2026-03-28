@@ -397,3 +397,32 @@ resource "aws_route" "chatbot_public_to_mgmt" {
   destination_cidr_block    = data.aws_vpc.mgmt_vpc.cidr_block
   vpc_peering_connection_id = data.aws_vpc_peering_connection.mgmt_to_chatbot.id
 }
+
+# --- 12. EKS NODE FIREWALL (MONITORING INGRESS) ---
+
+# 1. Dynamically find the running Monitoring Stack EC2 instance
+data "aws_instance" "monitoring_stack" {
+  filter {
+    name   = "tag:Name"
+    values = ["Monitoring-Stack-Private"]
+  }
+  filter {
+    name   = "instance-state-name"
+    values = ["running"]
+  }
+}
+
+# 2. Inject the Ingress Rule directly into the EKS Worker Node Security Group
+resource "aws_security_group_rule" "allow_grafana_scrape" {
+  type              = "ingress"
+  from_port         = 30271
+  to_port           = 30271
+  protocol          = "tcp"
+  
+  # The AWS EKS module automatically exposes the Node SG ID
+  security_group_id = module.eks.node_security_group_id 
+  
+  # Lock it down strictly to the Monitoring Stack's Private IP
+  cidr_blocks       = ["${data.aws_instance.monitoring_stack.private_ip}/32"]
+  description       = "Allow Management VPC Grafana to scrape Prometheus NodePort"
+}
