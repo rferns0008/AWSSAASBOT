@@ -90,6 +90,69 @@ pipeline {
             }
         }
 
+        stage('Configure Monitoring Firewall') {
+            steps {
+                script {
+                    sh '''#!/bin/bash
+                    set -e
+            
+                    REGION="ap-south-1"
+                    CLUSTER_NAME="secure-eks-testing"
+                    PORT=30271
+
+                    echo "🔍 Finding Monitoring Stack IP..."
+                    MONITORING_IP=$(aws ec2 describe-instances --region $REGION \\
+                        --filters "Name=tag:Name,Values=Monitoring-Stack-Private" "Name=instance-state-name,Values=running" \\
+                        --query "Reservations[0].Instances[0].PrivateIpAddress" \\
+                        --output text)
+            
+                    if [ -z "$MONITORING_IP" ] || [ "$MONITORING_IP" == "None" ]; then
+                        echo "❌ Monitoring Stack not found or not running! Exiting."
+                        exit 1
+                    fi
+                    echo "✅ Monitoring IP: $MONITORING_IP"
+
+                    echo "🔍 Finding EKS Node Security Group..."
+                    # Grabs the Security Group attached to the first running EKS worker node
+                    EKS_SG=$(aws ec2 describe-instances --region $REGION \\
+                        --filters "Name=tag:eks:cluster-name,Values=$CLUSTER_NAME" "Name=instance-state-name,Values=running" \\
+                        --query "Reservations[0].Instances[0].SecurityGroups[?GroupName!=''].GroupId | [0]" \\
+                        --output text)
+
+                    if [ -z "$EKS_SG" ] || [ "$EKS_SG" == "None" ]; then
+                        echo "❌ EKS Node Security Group not found! Exiting."
+                        exit 1
+                    fi
+                    echo "✅ EKS Node SG: $EKS_SG"
+
+                    echo "🧹 Scrubbing old rules to ensure no stale IPs linger..."
+                    RULE_IDS=$(aws ec2 describe-security-group-rules \\
+                        --region $REGION \\
+                        --filters "Name=group-id,Values=$EKS_SG" "Name=to-port,Values=$PORT" \\
+                        --query "SecurityGroupRules[*].SecurityGroupRuleId" \\
+                        --output text)
+            
+                    for RULE in $RULE_IDS; do
+                        if [ "$RULE" != "None" ] && [ -n "$RULE" ]; then
+                            aws ec2 revoke-security-group-ingress --region $REGION --group-id $EKS_SG --security-group-rule-ids $RULE
+                            echo "🗑️ Revoked old rule: $RULE"
+                        fi
+                    done
+
+                    echo "🛡️ Authorizing new Management IP..."
+                    aws ec2 authorize-security-group-ingress \\
+                        --region $REGION \\
+                        --group-id $EKS_SG \\
+                        --protocol tcp \\
+                        --port $PORT \\
+                    --cidr "$MONITORING_IP/32"
+            
+                    echo "🎉 Firewall hole punched successfully for $MONITORING_IP!"
+                    '''
+                }
+            }
+        }
+
         stage('Deploy Edge Infra') {
             when {
                 expression { return currentBuild.number == 1 || sh(script: "git diff --name-only HEAD^ HEAD | grep '\\.tf'", returnStatus: true) == 0 }
