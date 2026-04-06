@@ -65,12 +65,12 @@ else {
 
     Write-Host "`n[2/3] Restoring System & ALB Controller..." -ForegroundColor Cyan
     kubectl scale deployment coredns -n kube-system --replicas=2
-    kubectl scale deployment aws-load-balancer-controller -n kube-system --replicas=1
+    kubectl scale deployment aws-load-balancer-controller -n kube-system --replicas=2
     Start-Sleep -Seconds 30 # Allow controller to stabilize
 
     Write-Host "[3/3] Restoring All Application Namespaces..." -ForegroundColor Cyan
     foreach ($ns in $namespaces) {
-        kubectl scale deployment --all --replicas=1 -n $ns
+        kubectl scale deployment --all --replicas=2 -n $ns
     }
     Write-Host "`nSUCCESS: Cluster is HOT." -ForegroundColor Green
 }
